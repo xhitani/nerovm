@@ -18,8 +18,8 @@ import numpy as np
 # ─────────────────────────────────────────────────────────────────
 # CONFIGURATION — edit these
 # ─────────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN   = "8662888159:AAHIMYtBOme33y2YGsgTUG3Os-WvYgFp480"
-TELEGRAM_CHAT_ID = "7177159324"
+TELEGRAM_TOKEN   = ""
+TELEGRAM_CHAT_ID = ""
 NETWORK_INTERFACE = "enp0s3"        # change to your interface name
 ALERT_TRUST_THRESHOLD = 40
 RETRAIN_INTERVAL = 60
