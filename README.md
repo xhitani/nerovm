@@ -1,59 +1,146 @@
-# NERO v5.0 — Self-Evolving Network Security AI
+# NERO v5.0 — Network Security Monitoring & Response
 
-A self-hosted network monitor for your own LAN. Discovers devices via ARP/mDNS/DHCP/DNS,
-builds a behavioral fingerprint per device, scores trust with an Isolation Forest anomaly
-model, and can auto-block suspicious devices (ARP-based), rate-limit them, scan them
-(masscan/nikto), and alert you via Telegram — all from a live web dashboard.
+NERO is a self-hosted network security monitoring project designed to discover devices on a local network, analyze behavioral patterns, assess device trust, and support security response actions through a live web dashboard.
 
-**Run this only on a network you own or are authorized to administer.** Port scanning,
-vulnerability scanning, and ARP-based blocking performed against devices you do not control
-is illegal in most jurisdictions.
+> **Important:** NERO must run on a suitable Linux host with access to the network it monitors. Hosting the dashboard on AWS EC2 does not automatically provide visibility into devices on your home Wi-Fi.
+
+## Features
+
+- **Device discovery:** Uses network protocols such as ARP, mDNS, DHCP, and DNS to discover devices where the host has sufficient network visibility.
+- **Behavioral analysis:** Builds device profiles and uses an Isolation Forest model to identify potentially unusual behavior.
+- **Trust scoring:** Evaluates device behavior to help identify suspicious activity.
+- **Security response:** Includes configurable device-blocking and rate-limiting functionality.
+- **Network reconnaissance:** Optional Masscan and Nikto integrations.
+- **Notifications:** Supports Telegram alerts when configured.
+- **Web dashboard:** Flask-based dashboard for viewing monitoring information.
+- **Persistent storage:** SQLite-based local data storage.
+- **Optional proximity monitoring:** Wi-Fi and Bluetooth proximity functionality.
+- **Experimental adaptation:** Includes a module for adjusting trust weights and optionally proposing code changes.
+
+## Architecture
+
+NERO has two distinct deployment responsibilities:
+
+1. **Monitoring and enforcement:** Runs on a Linux host with appropriate access to the target LAN or gateway.
+2. **Dashboard and management:** Provides the web interface. It can be hosted locally or remotely, provided the deployment is secured and the necessary data connectivity is configured.
+
+For monitoring and blocking devices across a home network, traffic must be visible to NERO, and blocking actions must be enforced by a device that can control that traffic. A typical solution is a Linux gateway or a compatible router integration.
 
 ## Requirements
 
-- Linux, Python 3.9+, root privileges (raw packet sniffing)
-- `masscan` and `nikto` installed on the system for those scan features (optional — the app
-  detects their absence and disables those features gracefully)
+- Linux
+- Python 3.9 or later, subject to dependency compatibility
+- Root privileges or the specific capabilities required for packet capture and network enforcement
+- Dependencies listed in `requirements.txt`
+- Optional: Masscan and Nikto for supported scanning features
+- Optional: Telegram bot credentials for notifications
 
-## Install
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/xhitani/nerovm.git
+cd nerovm
+```
+
+Install system packages:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-pip masscan nikto
-pip3 install -r requirements.txt
+sudo apt install -y python3 python3-venv python3-pip build-essential
 ```
 
-## Run
+Create and activate a virtual environment:
 
 ```bash
-sudo python3 main.py
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-Interface, router IP, and subnet are auto-detected. Dashboard: `http://<this-machine-ip>:8080`
+Install Python dependencies:
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Install optional scanning tools if you intend to use those features:
+
+```bash
+sudo apt install -y masscan nikto
+```
+
+## Running NERO
+
+Start the application with the privileges required by your deployment:
+
+```bash
+sudo .venv/bin/python main.py
+```
+
+The dashboard is configured to use port `8080` in the documented setup:
+
+```text
+http://<host-ip>:8080
+```
+
+Use the actual IP address of the machine running NERO. Ensure firewall rules permit access only from trusted clients.
 
 ## Configuration
 
-Edit the settings block at the top of `main.py`:
+Review the configuration settings near the beginning of `main.py`. Available options include:
 
-- `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` — enable Telegram alerts
-- `ENABLE_AUTOBLOCK` — auto-block devices with low trust scores
-- `ENABLE_MASSCAN` / `ENABLE_NIKTO` — enable port/vuln scanning of LAN devices
-- `ENABLE_PROXIMITY` — enable the optional WiFi/BT proximity module
-- `CODE_EVOLVER` / `APPROVAL_REQUIRED` — the self-patching module that proposes code changes
-  via the Claude API; patches require human approval by default
-
-## Project layout
-
-| File | Role |
+| Setting | Purpose |
 |---|---|
-| `main.py` | Entry point, auto-config, wires everything together |
-| `sensors.py` | Packet sniffing / device discovery |
-| `brain.py` | Trust scoring + anomaly detection |
-| `actions.py` | Blocking, rate limiting, Telegram alerts |
-| `recon.py` | Device enrichment (apps, services, fingerprints) |
-| `masscan_scan.py` / `nikto_scan.py` | Port and web vuln scanning |
-| `evolution.py` | Self-tuning trust weights + optional code-patching |
-| `proximity.py` | Optional WiFi/Bluetooth proximity monitor |
-| `memory.py` | SQLite persistence (`nero.db`, created at runtime, not committed) |
-| `dashboard.py` | Web dashboard (Flask) |
-| `notifier.py` | Notification dispatch |
+| `TELEGRAM_TOKEN` | Telegram bot token for alerts |
+| `TELEGRAM_CHAT_ID` | Destination for Telegram notifications |
+| `ENABLE_AUTOBLOCK` | Controls automatic blocking behavior |
+| `ENABLE_MASSCAN` | Enables the Masscan integration |
+| `ENABLE_NIKTO` | Enables the Nikto integration |
+| `ENABLE_PROXIMITY` | Enables optional proximity monitoring |
+| `CODE_EVOLVER` | Controls experimental code-evolution functionality |
+| `APPROVAL_REQUIRED` | Controls approval requirements for proposed code changes |
+
+Verify the actual behavior and defaults in the current source code before enabling security response features.
+
+## Project Structure
+
+| File | Responsibility |
+|---|---|
+| `main.py` | Application entry point and configuration |
+| `sensors.py` | Packet monitoring and device discovery |
+| `brain.py` | Trust scoring and anomaly detection |
+| `actions.py` | Blocking, rate limiting, and response actions |
+| `recon.py` | Device enrichment and service information |
+| `masscan_scan.py` | Masscan integration |
+| `nikto_scan.py` | Nikto integration |
+| `evolution.py` | Trust-weight adaptation and experimental code changes |
+| `proximity.py` | Optional Wi-Fi/Bluetooth proximity monitoring |
+| `memory.py` | SQLite persistence |
+| `dashboard.py` | Flask dashboard |
+| `notifier.py` | Notification handling |
+
+## Deployment on AWS EC2
+
+NERO can run on an Ubuntu EC2 instance for remote dashboard hosting and other supported tasks. However, an ordinary EC2 instance is not automatically part of your home LAN.
+
+To monitor and block devices on a home network, use one of the following approaches:
+
+- Deploy NERO on a Linux gateway through which the relevant device traffic passes.
+- Integrate with a router that supports the required device-management and firewall controls.
+- Use a secure communication channel between a local monitoring agent and a remotely hosted dashboard, if supported by the implementation.
+
+Do not assume that enabling a bridge on the EC2 instance will connect it to your home Wi-Fi.
+
+## Security Considerations
+
+- Use NERO only on networks you own or are authorized to administer.
+- Do not expose the dashboard publicly without suitable authentication and access controls.
+- Restrict inbound firewall and cloud security-group rules to trusted sources.
+- Store credentials and API tokens outside version control.
+- Review blocking rules before enabling automatic enforcement.
+- Test in an isolated environment before applying changes to a live network.
+- Treat vulnerability scanning and experimental code modification as potentially disruptive operations.
+
+## Limitations
