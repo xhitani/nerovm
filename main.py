@@ -109,12 +109,6 @@ import proximity
 if ENABLE_PROXIMITY:
     proximity.MONITOR_INTERFACE = PROXIMITY_IFACE
 
-_HAS_VISION = False
-try:
-    import vision_recon; _HAS_VISION = True
-except ImportError:
-    pass
-
 def _restore_blocklist():
     blocked = [d for d in memory.get_all_devices() if d.get("blocked")]
     for dev in blocked:
@@ -163,7 +157,6 @@ def main():
     threading.Thread(target=dashboard.start, daemon=True).start()
     notifier.start()
     if ENABLE_PROXIMITY: proximity.start()
-    if _HAS_VISION: vision_recon.start()
     threading.Thread(target=_arp_sweep, daemon=True).start()
 
     actions.alert("SYSTEM", "NERO v5.0 Started",

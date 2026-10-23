@@ -283,71 +283,6 @@ textarea.popup-in{resize:vertical;min-height:72px;}
   <canvas id="map-canvas"></canvas>
 </div>
 <div id="panel-devices" class="panel active">
-    <div style="background:rgba(255,51,102,0.15); border:1px solid #ff3366; padding:15px; margin-bottom:20px; border-radius:12px; text-align:center;">
-        <h3 style="color:#ff3366; font-size:12px; text-transform:uppercase; letter-spacing:2px; margin-bottom:12px;">🔴 PHONE RECON HUD</h3>
-        
-        <div style="width:100%; height:250px; background:#000; border-radius:8px; overflow:hidden; position:relative; border:1px solid #333;">
-            <video id="phoneCam" autoplay playsinline style="display:none;"></video>
-            <canvas id="canvas" style="display:none;"></canvas>
-            <img id="processedFeed" src="" style="width:100%; height:100%; object-fit:contain;">
-        </div>
-
-        <button onclick="activateMobileVision()" style="width:100%; padding:12px; background:#ff3366; color:#fff; border:none; border-radius:6px; margin-top:12px; font-weight:bold; cursor:pointer; font-family:inherit;">
-            ACTIVATE CAMERA
-        </button>
-    </div>
-
-    <script>
-    function activateMobileVision() {
-    const video = document.getElementById('phoneCam');
-    const canvas = document.getElementById('canvas');
-    const img = document.getElementById('processedFeed');
-
-    // 1. Request access to the back camera (environment)
-    navigator.mediaDevices.getUserMedia({ 
-        video: { 
-            facingMode: "environment",
-            width: { ideal: 640 },
-            height: { ideal: 480 }
-        } 
-    })
-    .then(stream => {
-        video.srcObject = stream;
-        video.play();
-        
-        // 2. IMPORTANT: Set the stream source ONLY ONCE. 
-        // Do NOT put this inside the setInterval or it will flicker.
-        img.src = "/video_feed"; 
-
-        // 3. Start the upload loop (runs in the background)
-        setInterval(() => {
-            // Match canvas size to video aspect ratio
-            canvas.width = 480;
-            canvas.height = 360;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, 480, 360);
-            
-            // Convert to JPEG and send to NERO
-            canvas.toBlob(blob => {
-                let formData = new FormData();
-                formData.append('image', blob);
-                
-                fetch('/upload_frame', { 
-                    method: 'POST', 
-                    body: formData 
-                }).catch(err => console.error("Stream sync error:", err));
-                
-            }, 'image/jpeg', 0.5); // 0.5 quality keeps it fast and smooth
-        }, 150); // ~7-8 frames per second
-        
-    })
-    .catch(err => {
-        console.error(err);
-        alert("Camera Error: Ensure you are on the same WiFi as the VM and have enabled the Chrome Flags for insecure origins.");
-    });
-}
-    </script>
-    ```
 
 <!-- TOP TALKERS -->
 <div id="panel-talkers" class="panel">
@@ -821,19 +756,5 @@ def api_status():
         "trust_scores":dict(brain.trust_scores),
         "alerts":      len(memory.get_alerts(100)),
     })
-@app.route("/upload_frame", methods=["POST"])
-def upload_frame():
-    import vision_recon
-    # Read the raw image data from the phone's request
-    if 'image' in request.files:
-        vision_recon.process_phone_frame(request.files['image'].read())
-    return "OK"
-
-@app.route("/video_feed")
-def video_feed():
-    import vision_recon
-    from flask import Response
-    return Response(vision_recon.get_processed_stream(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
 def start():
     app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)

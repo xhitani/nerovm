@@ -1,0 +1,6 @@
+flask
+scapy
+scikit-learn
+numpy
+netifaces
+requests
