@@ -3,6 +3,8 @@ NERO Sensors — sensors.py
 All packet sniffing: ARP, mDNS, DHCP, NetBIOS, DNS, bandwidth.
 Writes into shared state dicts and memory.py.
 """
+import ipaddress
+import re
 import time, threading
 from collections import defaultdict
 from scapy.all import sniff, ARP, IP, UDP, TCP, Ether, DNS, DNSQR, BOOTP, DHCP
@@ -27,8 +29,27 @@ INTERFACE  = __import__("os").environ.get("NERO_INTERFACE", "enp0s3")
 SUBNET     = __import__("os").environ.get("NERO_SUBNET",    "192.168.1.")
 
 # ── HELPERS ──────────────────────────────────────────────────────
+def _network_from_config(subnet):
+    value = (subnet or "").strip()
+    try:
+        if "/" not in value and value.endswith("."):
+            value = f"{value}0/24"
+        return ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        return ipaddress.ip_network("192.168.1.0/24")
+
+LAN_NETWORK = _network_from_config(SUBNET)
+try:
+    _ROUTER_ADDRESS = ipaddress.ip_address(ROUTER_IP)
+except ValueError:
+    _ROUTER_ADDRESS = None
+
 def _is_lan(ip):
-    return ip.startswith(SUBNET) and ip != ROUTER_IP
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return address in LAN_NETWORK and address != _ROUTER_ADDRESS
 
 def _get_os(ttl):
     if ttl <= 64:  return "Linux/Android"
@@ -46,6 +67,15 @@ def _set_name(ip, name):
             memory.upsert_device(ip, name=name)
 
 def _register_device(ip, mac, os_guess, source="ARP"):
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    mac = (mac or "").strip().lower()
+    if not re.fullmatch(r"(?:[0-9a-f]{2}:){5}[0-9a-f]{2}", mac):
+        return False
+    if mac == "ff:ff:ff:ff:ff:ff":
+        return False
     now = time.time()
     with _lock:
         if ip not in devices:
@@ -61,8 +91,12 @@ def _register_device(ip, mac, os_guess, source="ARP"):
         else:
             devices[ip]["last_seen"]  = now
             devices[ip]["packets"]   += 1
-            if mac and mac != "ff:ff:ff:ff:ff:ff":
+            if mac:
                 devices[ip]["mac"] = mac
+                if devices[ip].get("vendor") in ("", "Unknown", None):
+                    devices[ip]["vendor"] = _vendor(mac)
+            if os_guess and os_guess != "Unknown" and devices[ip].get("os") in ("", "Unknown"):
+                devices[ip]["os"] = os_guess
             return False
 
 # ── VENDOR LOOKUP ─────────────────────────────────────────────────

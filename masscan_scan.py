@@ -4,6 +4,7 @@ Scans the entire subnet in ~2 seconds using masscan.
 Auto-updates device profiles with open ports, device types, security flags.
 Requires: sudo apt install masscan
 """
+import ipaddress
 import subprocess, json, time, threading, re
 import sensors, memory
 
@@ -30,7 +31,7 @@ PORT_INFO = {
     139:   ("NetBIOS",  "🪟 Windows NetBIOS"),
     443:   ("HTTPS",    "🔒 Secure web interface"),
     445:   ("SMB",      "🪟 Windows file sharing"),
-    554:   ("RTSP",     "📷 IP Camera"),
+    554:   ("RTSP",     "RTSP service"),
     1883:  ("MQTT",     "🔌 IoT MQTT broker"),
     3389:  ("RDP",      "🖥 Windows Remote Desktop"),
     5900:  ("VNC",      "🖥 VNC remote desktop"),
@@ -41,7 +42,7 @@ PORT_INFO = {
 }
 
 PORT_DEVICE_TYPE = {
-    554: "IP Camera", 1883: "IoT Device", 9100: "Printer",
+    554: "RTSP Service", 1883: "IoT Device", 9100: "Printer",
     3389: "Windows PC", 7547: "Router/Modem", 23: "Old/IoT Device",
 }
 
@@ -50,9 +51,15 @@ _lock        = threading.Lock()
 
 def _check_masscan():
     try:
-        subprocess.run(["masscan", "--version"], capture_output=True, timeout=3)
-        return True
-    except FileNotFoundError:
+        result = subprocess.run(
+            ["masscan", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
 def _run_masscan(target):
@@ -66,15 +73,31 @@ def _run_masscan(target):
         "--wait", "1",
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, check=False
+        )
+        if result.returncode != 0:
+            print(f"[MASSCAN] Exit {result.returncode}: {result.stderr.strip()[:200]}")
+            return []
         output = result.stdout.strip()
         if not output or output == "[]":
             return []
-        output = re.sub(r',\s*\]', ']', output)
-        if not output.startswith('['):
-            output = '[' + output + ']'
-        return json.loads(output)
-    except Exception as e:
+        try:
+            parsed = json.loads(output)
+        except json.JSONDecodeError:
+            parsed = []
+            for line in output.splitlines():
+                line = line.strip().rstrip(",")
+                if not line or line in ("[", "]"):
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(entry, dict):
+                    parsed.append(entry)
+        return parsed if isinstance(parsed, list) else []
+    except (subprocess.TimeoutExpired, OSError) as e:
         print(f"[MASSCAN] Error: {e}")
         return []
 
@@ -83,12 +106,21 @@ def _process(raw):
     for entry in raw:
         ip    = entry.get("ip", "")
         ports = entry.get("ports", [])
-        if not ip or ip == ROUTER_IP:
+        try:
+            valid_ip = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if valid_ip not in sensors.LAN_NETWORK or ip == ROUTER_IP:
             continue
         for p in ports:
-            if p.get("proto") != "tcp":
+            if not isinstance(p, dict) or p.get("proto") != "tcp":
                 continue
-            found.setdefault(ip, set()).add(p["port"])
+            try:
+                port = int(p["port"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if 1 <= port <= 65535:
+                found.setdefault(ip, set()).add(port)
 
     with _lock:
         for ip, ports in found.items():

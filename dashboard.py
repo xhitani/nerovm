@@ -3,7 +3,7 @@ NERO Dashboard — dashboard.py
 Full web UI: devices, network map, top talkers,
 alert log, blocklist, evolution log, threat DB.
 """
-from flask import Flask, render_template_string, jsonify, request, Response
+from flask import Flask, render_template_string, jsonify, request
 import time, json, threading
 
 app = Flask(__name__)
@@ -283,7 +283,6 @@ textarea.popup-in{resize:vertical;min-height:72px;}
   <canvas id="map-canvas"></canvas>
 </div>
 <div id="panel-devices" class="panel active">
-
 <!-- TOP TALKERS -->
 <div id="panel-talkers" class="panel">
   <div class="sec">Bandwidth — Live</div>
@@ -690,15 +689,21 @@ def index():
 
 @app.route("/api/block/<ip>",   methods=["POST"])
 def api_block(ip):
+    if not sensors._is_lan(ip) or ip not in sensors.devices:
+        return jsonify({"ok":False,"error":"unknown LAN device"}), 400
     actions.block(ip, reason="dashboard"); return jsonify({"ok":True})
 
 @app.route("/api/unblock/<ip>", methods=["POST"])
 def api_unblock(ip):
+    if not sensors._is_lan(ip) or ip not in sensors.devices:
+        return jsonify({"ok":False,"error":"unknown LAN device"}), 400
     actions.unblock(ip); return jsonify({"ok":True})
 
 @app.route("/api/notify/<ip>",  methods=["POST"])
 def api_notify(ip):
-    data = request.get_json(force=True)
+    if not sensors._is_lan(ip) or ip not in sensors.devices:
+        return jsonify({"ok":False,"error":"unknown LAN device"}), 400
+    data = request.get_json(silent=True) or {}
     msg  = data.get("message","")
     if not msg: return jsonify({"error":"no message"}),400
     actions.send_notification(ip, data.get("title","NERO"), msg)
@@ -706,6 +711,8 @@ def api_notify(ip):
 
 @app.route("/api/outcome/<int:alert_id>/<outcome>", methods=["POST"])
 def api_outcome(alert_id, outcome):
+    if outcome not in {"confirmed_threat", "false_positive"}:
+        return jsonify({"ok":False,"error":"invalid outcome"}), 400
     memory.update_alert_outcome(alert_id, outcome)
     return jsonify({"ok":True})
 
@@ -721,6 +728,8 @@ def api_rollback():
 
 @app.route("/api/device/<ip>")
 def api_device(ip):
+    if not sensors._is_lan(ip) or ip not in sensors.devices:
+        return jsonify({"error":"unknown LAN device"}), 404
     dev      = sensors.devices.get(ip, {})
     rc       = dev.get("recon", {})
     apps     = sorted(list(recon.detected_apps.get(ip, set())))
@@ -756,5 +765,6 @@ def api_status():
         "trust_scores":dict(brain.trust_scores),
         "alerts":      len(memory.get_alerts(100)),
     })
+
 def start():
     app.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)

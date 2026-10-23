@@ -293,7 +293,7 @@ def _handle_mdns_services(pkt):
         if not pkt.haslayer(IP) or not pkt.haslayer(DNS):
             return
         src = pkt[IP].src
-        if not src.startswith(sensors.SUBNET):
+        if not sensors._is_lan(src):
             return
         dns = pkt[DNS]
         for section in [dns.an, dns.ar, dns.ns]:
@@ -356,7 +356,7 @@ def _handle_tcp_syn(pkt):
         if pkt[TCP].flags != 0x02:   # SYN only
             return
         src = pkt[IP].src
-        if not src.startswith(sensors.SUBNET):
+        if not sensors._is_lan(src):
             return
         ttl  = pkt[IP].ttl
         win  = pkt[TCP].window
@@ -527,7 +527,7 @@ def _handle_dns_apps(pkt):
         if pkt[DNS].qr != 0:
             return
         src = pkt[IP].src
-        if not src.startswith(sensors.SUBNET):
+        if not sensors._is_lan(src):
             return
         qname = pkt[DNSQR].qname.decode("utf-8", errors="ignore").lower().rstrip(".")
         track_dns_for_apps(src, qname)

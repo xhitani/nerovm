@@ -72,8 +72,9 @@ def _parse(raw, port):
 
 def scan_device(ip, open_ports=None):
     now = time.time()
-    if now - _scan_done.get(ip, 0) < SCAN_COOLDOWN:
-        return
+    with _lock:
+        if now - _scan_done.get(ip, 0) < SCAN_COOLDOWN:
+            return False
 
     if open_ports is None:
         try:
@@ -84,9 +85,7 @@ def scan_device(ip, open_ports=None):
 
     http_ports = [p for p in open_ports if p in HTTP_PORTS]
     if not http_ports:
-        return
-
-    _scan_done[ip] = now
+        return False
     all_findings = []
 
     for port in http_ports:
@@ -102,6 +101,7 @@ def scan_device(ip, open_ports=None):
                 print(f"[NIKTO] {f['severity'].upper()}: {f['finding'][:80]}")
 
     with _lock:
+        _scan_done[ip] = now
         nikto_results[ip] = all_findings
         if ip in sensors.devices:
             sensors.devices[ip]["nikto"] = all_findings
@@ -115,6 +115,7 @@ def scan_device(ip, open_ports=None):
     n_crit = sum(1 for f in all_findings if f["severity"] == "critical")
     n_high = sum(1 for f in all_findings if f["severity"] == "high")
     print(f"[NIKTO] {ip}: {len(all_findings)} findings ({n_crit} critical, {n_high} high)")
+    return True
 
 def get_findings(ip):
     with _lock:
