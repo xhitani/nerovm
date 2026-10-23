@@ -69,6 +69,25 @@ class NetworkAccuracyTests(unittest.TestCase):
         response = client.get("/api/device/192.168.10.25")
         self.assertEqual(response.status_code, 404)
 
+    def test_dashboard_panels_are_not_nested_in_devices_panel(self):
+        self.assertEqual(dashboard.HTML.count('id="panel-devices"'), 1)
+        self.assertNotIn(
+            '<div id="panel-devices" class="panel active">\n<!-- TOP TALKERS -->',
+            dashboard.HTML,
+        )
+
+    def test_packet_analysis_identifies_top_sender_and_receiver(self):
+        sensors.devices.clear()
+        sensors.devices.update({
+            "192.168.1.10": {"name": "Laptop", "packets_sent": 12, "packets_received": 3},
+            "192.168.1.20": {"name": "Phone", "packets_sent": 4, "packets_received": 19},
+        })
+        analysis = dashboard._packet_analysis()
+        self.assertEqual(analysis["senders"][0]["name"], "Laptop")
+        self.assertEqual(analysis["receivers"][0]["name"], "Phone")
+        self.assertEqual(analysis["summary"]["sent"], 16)
+        self.assertEqual(analysis["summary"]["received"], 22)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -82,6 +82,8 @@ def _register_device(ip, mac, os_guess, source="ARP"):
             devices[ip] = {
                 "ip": ip, "mac": mac, "name": "",
                 "os": os_guess, "packets": 0,
+                "packets_sent": 0, "packets_received": 0,
+                "bytes_sent": 0, "bytes_received": 0,
                 "first_seen": now, "last_seen": now,
                 "source": source, "vendor": _vendor(mac),
             }
@@ -166,8 +168,16 @@ def _handle_ip(pkt):
         if _is_lan(ip):
             with _lock:
                 _bandwidth_acc[ip] += sz
-            if ip in devices:
-                _register_device(ip, devices[ip].get("mac",""), "", "IP")
+                device = devices.get(ip)
+                if device:
+                    device["packets"] += 1
+                    if ip == src:
+                        device["packets_sent"] += 1
+                        device["bytes_sent"] += sz
+                    else:
+                        device["packets_received"] += 1
+                        device["bytes_received"] += sz
+                    device["last_seen"] = time.time()
     # DNS
     if pkt.haslayer(DNS) and pkt[DNS].qr == 0 and _is_lan(src):
         try:

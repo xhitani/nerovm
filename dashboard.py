@@ -49,6 +49,7 @@ body{background:radial-gradient(1200px 600px at 12% -10%, rgba(124,92,255,0.16),
      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;transition:all .15s ease;}
 .tab:hover{color:var(--text);background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.12);}
 .tab.active{color:var(--text);border-color:rgba(124,92,255,0.35);background:rgba(124,92,255,0.14);}
+.brand-mark{color:#B66DFF;font-size:10px;letter-spacing:1.5px;margin-left:auto;font-weight:600;}
 .content{padding:16px 20px;}
 .panel{display:none;}.panel.active{display:block;}
 .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px;}
@@ -108,6 +109,20 @@ body{background:radial-gradient(1200px 600px at 12% -10%, rgba(124,92,255,0.16),
 .tbarw{flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;}
 .tbar2{height:100%;border-radius:3px;}
 .tval{min-width:80px;text-align:right;font-size:10px;}
+.analysis-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;}
+.analysis-card{background:linear-gradient(145deg,rgba(25,32,65,.94),rgba(15,22,40,.94));border:1px solid rgba(124,92,255,.22);border-radius:14px;padding:16px;box-shadow:0 12px 28px rgba(0,0,0,.16);}
+.analysis-card h3{font-size:13px;font-weight:600;margin-bottom:5px;}
+.analysis-muted{font-size:10px;color:var(--muted2);margin-bottom:14px;}
+.analysis-list{display:flex;flex-direction:column;gap:10px;}
+.analysis-row{display:grid;grid-template-columns:145px 1fr 80px;align-items:center;gap:10px;font-size:11px;}
+.analysis-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+.analysis-bar{height:8px;background:rgba(255,255,255,.07);border-radius:8px;overflow:hidden;}
+.analysis-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,#7C5CFF,#5AA7FF);}
+.analysis-value{text-align:right;color:var(--cyan);font-family:'JetBrains Mono',monospace;font-size:10px;}
+.metric-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.metric{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;}
+.metric-value{font-size:20px;font-weight:700;color:var(--green);}
+.metric-label{font-size:10px;color:var(--muted2);margin-top:4px;}
 .block-row{display:flex;gap:8px;margin-bottom:12px;}
 .block-in{flex:1;background:rgba(18,27,38,0.75);border:1px solid rgba(255,255,255,0.10);border-radius:12px;
           padding:10px 12px;color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
@@ -174,15 +189,18 @@ textarea.popup-in{resize:vertical;min-height:72px;}
 .popup-status{font-size:10px;color:var(--green);margin-top:7px;min-height:14px;text-align:center;}
 .empty{text-align:center;padding:40px;color:var(--muted);}
 .footer{text-align:center;font-size:9px;color:rgba(200,220,255,0.15);letter-spacing:2px;padding:14px;}
-@media(max-width:600px){.stats{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:800px){.analysis-grid{grid-template-columns:1fr;}}
+@media(max-width:600px){.stats{grid-template-columns:repeat(3,1fr);}.analysis-row{grid-template-columns:100px 1fr 70px;}}
 </style>
 </head>
 <body>
 <div class="hdr">
   <div class="logo">NERO</div>
   <div class="sub"><span class="pulse"></span> SELF-EVOLVING NETWORK SECURITY v5.0 — LIVE</div>
+  <div class="brand-mark">MADE BY KARIM</div>
   <div class="tabs">
     <button class="tab active" onclick="sw('devices',this)">DEVICES ({{ total }})</button>
+    <button class="tab" onclick="sw('analysis',this)">ANALYSIS</button>
     <button class="tab" onclick="sw('map',this)">NETWORK MAP</button>
     <button class="tab" onclick="sw('talkers',this)">TOP TALKERS</button>
     <button class="tab" onclick="sw('alerts',this)">ALERTS ({{ alerts_count }})</button>
@@ -282,7 +300,47 @@ textarea.popup-in{resize:vertical;min-height:72px;}
   <div class="sec">Network Topology</div>
   <canvas id="map-canvas"></canvas>
 </div>
-<div id="panel-devices" class="panel active">
+<!-- ANALYSIS -->
+<div id="panel-analysis" class="panel">
+  <div class="sec">Traffic Analysis</div>
+  <div class="analysis-grid">
+    <div class="analysis-card">
+      <h3>Devices sending the most packets</h3>
+      <div class="analysis-muted">Outbound packets observed from each device</div>
+      <div class="analysis-list">
+        {% for item in packet_senders %}
+        <div class="analysis-row">
+          <div class="analysis-name">{{ item.name }}<br><span style="color:var(--muted2);font-size:9px;">{{ item.ip }}</span></div>
+          <div class="analysis-bar"><div class="analysis-fill" style="width:{{ item.pct }}%"></div></div>
+          <div class="analysis-value">{{ item.packets }}</div>
+        </div>
+        {% endfor %}
+        {% if not packet_senders %}<div class="empty">Waiting for outbound packet data...</div>{% endif %}
+      </div>
+    </div>
+    <div class="analysis-card">
+      <h3>Devices receiving the most packets</h3>
+      <div class="analysis-muted">Inbound packets observed by each device</div>
+      <div class="analysis-list">
+        {% for item in packet_receivers %}
+        <div class="analysis-row">
+          <div class="analysis-name">{{ item.name }}<br><span style="color:var(--muted2);font-size:9px;">{{ item.ip }}</span></div>
+          <div class="analysis-bar"><div class="analysis-fill" style="width:{{ item.pct }}%;background:linear-gradient(90deg,#5DD6A7,#5AA7FF)"></div></div>
+          <div class="analysis-value">{{ item.packets }}</div>
+        </div>
+        {% endfor %}
+        {% if not packet_receivers %}<div class="empty">Waiting for inbound packet data...</div>{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="sec">Traffic Summary</div>
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-value">{{ packet_summary.sent }}</div><div class="metric-label">PACKETS SENT</div></div>
+    <div class="metric"><div class="metric-value">{{ packet_summary.received }}</div><div class="metric-label">PACKETS RECEIVED</div></div>
+    <div class="metric"><div class="metric-value">{{ packet_summary.sender }}</div><div class="metric-label">TOP SENDER</div></div>
+    <div class="metric"><div class="metric-value">{{ packet_summary.receiver }}</div><div class="metric-label">TOP RECEIVER</div></div>
+  </div>
+</div>
 <!-- TOP TALKERS -->
 <div id="panel-talkers" class="panel">
   <div class="sec">Bandwidth — Live</div>
@@ -431,8 +489,6 @@ textarea.popup-in{resize:vertical;min-height:72px;}
   {% if not threats %}<div class="empty">No threat patterns learned yet — auto-detection builds over time</div>{% endif %}
 </div>
 
-</div><!-- /content -->
-
 <!-- DEVICE POPUP -->
 <div class="overlay" id="overlay">
   <div class="popup">
@@ -453,7 +509,7 @@ textarea.popup-in{resize:vertical;min-height:72px;}
   </div>
 </div>
 
-<div class="footer">NERO v5.0 — {{ cur_time }} — {{ total }} devices — Self-Evolving AI Active</div>
+<div class="footer">NERO v5.0 — {{ cur_time }} — {{ total }} devices — Self-Evolving AI Active — Made by Karim</div>
 
 <script>
 const mapData = {{ map_json|safe }};
@@ -632,10 +688,43 @@ def _build_devs():
         })
     return sorted(rows, key=lambda x: x["score"])
 
+def _packet_analysis():
+    def build(direction):
+        key = f"packets_{direction}"
+        rows = []
+        for ip, dev in sensors.devices.items():
+            packets = int(dev.get(key, 0) or 0)
+            if packets:
+                rows.append({
+                    "ip": ip,
+                    "name": dev.get("name", "") or ip,
+                    "packets": packets,
+                })
+        rows.sort(key=lambda row: row["packets"], reverse=True)
+        top = rows[:8]
+        maximum = max((row["packets"] for row in top), default=1)
+        for row in top:
+            row["pct"] = max(4, int(row["packets"] / maximum * 100))
+        return top
+
+    senders = build("sent")
+    receivers = build("received")
+    return {
+        "senders": senders,
+        "receivers": receivers,
+        "summary": {
+            "sent": sum(int(d.get("packets_sent", 0) or 0) for d in sensors.devices.values()),
+            "received": sum(int(d.get("packets_received", 0) or 0) for d in sensors.devices.values()),
+            "sender": senders[0]["name"] if senders else "—",
+            "receiver": receivers[0]["name"] if receivers else "—",
+        },
+    }
+
 # ── ROUTES ────────────────────────────────────────────────────────
 @app.route("/")
 def index():
     devs       = _build_devs()
+    packet_data = _packet_analysis()
     alerts_raw = memory.get_alerts(limit=150)
     for a in alerts_raw:
         a["time_str"] = time.strftime("%H:%M:%S", time.localtime(a["ts"]))
@@ -681,6 +770,9 @@ def index():
         trust_weights=evolution.trust_weights,
         threats=threats_raw,
         threats_count=len(threats_raw),
+        packet_senders=packet_data["senders"],
+        packet_receivers=packet_data["receivers"],
+        packet_summary=packet_data["summary"],
         proximity_devs=getattr(proximity, 'nearby_devices', {}),
         map_json=json.dumps({"devices":map_devs}),
         now=time.time(),
